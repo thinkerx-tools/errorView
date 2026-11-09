@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>变更趋势 · ErrorView</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
+
+    <div class="app">
+      <nav class="top-nav" aria-label="页面导航">
+        <a href="./index.html">记录预览</a>
+        <a href="./trend.html" class="is-active">变更趋势</a>
+        <a href="./crash.html">崩溃分析</a>
+      </nav>
+
+      <header class="hero">
+        <div class="brand-block">
+          <p class="brand">ErrorView</p>
+          <h1>近期变更趋势</h1>
+          <p class="subtitle">按时间区间与条件聚合异常记录，观察数量变化与类型分布</p>
+        </div>
+        <div class="hero-actions">
+          <label class="env-switch">
+            <span>环境</span>
+            <select id="envSelect" aria-label="选择接口环境">
+              <option value="prod">正式服 · ggtools</option>
+              <option value="online">测试服 · api-online</option>
+              <option value="test">开发服 · api-test</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-ghost" id="clearCacheBtn">清缓存</button>
+          <button type="button" class="btn btn-primary" id="refreshBtn" title="忽略缓存强制拉取">
+            刷新分析
+          </button>
+        </div>
+      </header>
+
+      <section class="panel filters" aria-label="趋势筛选">
+        <div class="range-presets" aria-label="时间快捷选择">
+          <span>时间范围</span>
+          <button type="button" class="chip" data-hours="1">近 1 小时</button>
+          <button type="button" class="chip is-active" data-hours="24">近 24 小时</button>
+          <button type="button" class="chip" data-hours="72">近 3 天</button>
+          <button type="button" class="chip" data-hours="168">近 7 天</button>
+        </div>
+
+        <div class="filter-grid">
+          <label>
+            <span>开始时间</span>
+            <input id="start_time" type="datetime-local" />
+          </label>
+          <label>
+            <span>结束时间</span>
+            <input id="end_time" type="datetime-local" />
+          </label>
+          <label>
+            <span>UID</span>
+            <input id="uid" type="number" placeholder="可选" />
+          </label>
+          <label>
+            <span>异常类型</span>
+            <select id="type">
+              <option value="">全部类型</option>
+            </select>
+          </label>
+          <label>
+            <span>异常等级</span>
+            <select id="level">
+              <option value="">全部等级</option>
+            </select>
+          </label>
+          <label>
+            <span>版本</span>
+            <input id="version" type="text" placeholder="version" />
+          </label>
+          <label>
+            <span>时间粒度</span>
+            <select id="bucket">
+              <option value="auto" selected>自动</option>
+              <option value="hour">按小时</option>
+              <option value="day">按天</option>
+            </select>
+          </label>
+          <label>
+            <span>拉取上限</span>
+            <select id="maxRecords">
+              <option value="1000">1000 条</option>
+              <option value="2000" selected>2000 条</option>
+              <option value="5000">5000 条</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="search-row trend-actions">
+          <p class="hint">建议始终设置时间范围；系统会分页拉取并写入本地缓存后绘制趋势。</p>
+          <button type="button" class="btn btn-ghost" id="resetBtn">重置</button>
+          <button type="button" class="btn btn-secondary" id="queryBtn">分析趋势</button>
+        </div>
+      </section>
+
+      <section class="stats" aria-live="polite">
+        <div class="stat">
+          <span class="stat-label">样本数</span>
+          <strong id="statSamples">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">接口总数</span>
+          <strong id="statTotal">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">峰值时段</span>
+          <strong id="statPeak">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">主要类型</span>
+          <strong id="statTopType">—</strong>
+        </div>
+      </section>
+
+      <div class="progress-panel" id="progressPanel" hidden>
+        <div class="progress-head">
+          <span id="progressLabel">准备中…</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <p id="statusText" class="status-text trend-status">选择条件后点击「分析趋势」</p>
+
+      <section class="chart-grid">
+        <article class="panel chart-card">
+          <header>
+            <h2>数量趋势</h2>
+            <p>按时间桶统计记录条数</p>
+          </header>
+          <div class="chart-wrap">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </article>
+
+        <article class="panel chart-card">
+          <header>
+            <h2>类型分布</h2>
+            <p>Top 类型占比</p>
+          </header>
+          <div class="chart-wrap chart-wrap-sm">
+            <canvas id="typeChart"></canvas>
+          </div>
+        </article>
+
+        <article class="panel chart-card">
+          <header>
+            <h2>等级分布</h2>
+            <p>按 level 汇总</p>
+          </header>
+          <div class="chart-wrap chart-wrap-sm">
+            <canvas id="levelChart"></canvas>
+          </div>
+        </article>
+
+        <article class="panel chart-card">
+          <header>
+            <h2>版本分布</h2>
+            <p>Top 版本</p>
+          </header>
+          <div class="chart-wrap chart-wrap-sm">
+            <canvas id="versionChart"></canvas>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-toolbar">
+          <p class="status-text">时段明细</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>时间桶</th>
+                <th>数量</th>
+                <th>占比</th>
+                <th>主要类型</th>
+              </tr>
+            </thead>
+            <tbody id="bucketBody">
+              <tr class="empty-row">
+                <td colspan="4">暂无数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>页面：变更趋势</span>
+        <span>数据源：<code>/error/record</code></span>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="./trend.js" type="module"></script>
+  </body>
+</html>

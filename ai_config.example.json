@@ -1,0 +1,8 @@
+{
+  "provider": "cursor-cli",
+  "mode": "ask",
+  "workspace": "assets/simple",
+  "model": "",
+  "timeoutSec": 300,
+  "agentBin": ""
+}

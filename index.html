@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>异常记录预览 · ErrorView</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
+
+    <div class="app">
+      <nav class="top-nav" aria-label="页面导航">
+        <a href="./index.html" class="is-active">记录预览</a>
+        <a href="./trend.html">变更趋势</a>
+        <a href="./crash.html">崩溃分析</a>
+      </nav>
+
+      <header class="hero">
+        <div class="brand-block">
+          <p class="brand">ErrorView</p>
+          <h1>异常记录预览</h1>
+          <p class="subtitle">检索、筛选并展开查看 `/error/record` 返回的异常详情</p>
+        </div>
+        <div class="hero-actions">
+          <label class="env-switch">
+            <span>环境</span>
+            <select id="envSelect" aria-label="选择接口环境">
+              <option value="prod">正式服 · ggtools</option>
+              <option value="online">测试服 · api-online</option>
+              <option value="test">开发服 · api-test</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-ghost" id="clearCacheBtn" title="清除本地缓存">
+            清缓存
+          </button>
+          <button type="button" class="btn btn-primary" id="refreshBtn" title="忽略缓存，强制重新请求">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.1A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"
+              />
+            </svg>
+            刷新数据
+          </button>
+        </div>
+      </header>
+
+      <section class="panel filters" aria-label="筛选条件">
+        <div class="search-row">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5Zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14Z"
+              />
+            </svg>
+            <input
+              id="keyword"
+              type="search"
+              placeholder="本地搜索：uid / 手机号 / type / level / version / info…"
+              autocomplete="off"
+            />
+          </div>
+          <button type="button" class="btn btn-ghost" id="resetBtn">清空条件</button>
+          <button type="button" class="btn btn-secondary" id="queryBtn">查询</button>
+        </div>
+
+        <div class="range-presets" aria-label="时间快捷选择">
+          <span>时间范围</span>
+          <button type="button" class="chip" data-hours="1">近 1 小时</button>
+          <button type="button" class="chip is-active" data-hours="24">近 24 小时</button>
+          <button type="button" class="chip" data-hours="168">近 7 天</button>
+        </div>
+
+        <div class="filter-grid">
+          <label>
+            <span>UID</span>
+            <input id="uid" type="number" placeholder="可选" />
+          </label>
+          <label>
+            <span>异常类型</span>
+            <select id="type">
+              <option value="">全部类型</option>
+            </select>
+          </label>
+          <label>
+            <span>异常等级</span>
+            <select id="level">
+              <option value="">全部等级</option>
+            </select>
+          </label>
+          <label>
+            <span>版本</span>
+            <input id="version" type="text" placeholder="version" />
+          </label>
+          <label>
+            <span>开始时间</span>
+            <input id="start_time" type="datetime-local" />
+          </label>
+          <label>
+            <span>结束时间</span>
+            <input id="end_time" type="datetime-local" />
+          </label>
+          <label>
+            <span>每页数量</span>
+            <select id="limit">
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="stats" id="statsBar" aria-live="polite">
+        <div class="stat">
+          <span class="stat-label">接口总数</span>
+          <strong id="statTotal">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">当前展示</span>
+          <strong id="statShown">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">本地命中</span>
+          <strong id="statFiltered">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label">耗时</span>
+          <strong id="statLatency">—</strong>
+        </div>
+      </section>
+
+      <div class="progress-panel" id="progressPanel" hidden>
+        <div class="progress-head">
+          <span id="progressLabel">准备中…</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <section class="panel table-panel">
+        <div class="table-toolbar">
+          <p id="statusText" class="status-text">准备就绪，点击「查询」或「刷新数据」加载</p>
+          <div class="pager">
+            <button type="button" class="btn btn-ghost btn-sm" id="prevPage" disabled>上一页</button>
+            <span id="pageInfo">第 1 页</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="nextPage" disabled>下一页</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 4rem">ID</th>
+                <th style="width: 6rem">UID</th>
+                <th style="width: 8rem">手机号</th>
+                <th style="width: 8rem">类型</th>
+                <th style="width: 5rem">等级</th>
+                <th style="width: 8rem">版本</th>
+                <th style="width: 11rem">时间</th>
+                <th>异常信息预览</th>
+                <th style="width: 5rem"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr class="empty-row">
+                <td colspan="9">暂无数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>接口：<code>/error/record</code></span>
+        <span>文档：获取记录异常信息</span>
+      </footer>
+    </div>
+
+    <dialog id="detailDialog" class="detail-dialog">
+      <form method="dialog" class="detail-sheet">
+        <header>
+          <div>
+            <p class="detail-kicker">异常详情</p>
+            <h2 id="detailTitle">#—</h2>
+          </div>
+          <button type="submit" class="btn btn-ghost btn-sm" value="close" aria-label="关闭">关闭</button>
+        </header>
+        <div class="detail-meta" id="detailMeta"></div>
+        <pre id="detailJson" class="detail-json"></pre>
+        <div class="detail-actions">
+          <button type="button" class="btn btn-ghost" id="analyzeCrashBtn" hidden>分析崩溃</button>
+          <button type="button" class="btn btn-secondary" id="copyBtn">复制 JSON</button>
+          <button type="submit" class="btn btn-primary" value="close">完成</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

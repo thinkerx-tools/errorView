@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>崩溃分析 · ErrorView</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
+
+    <div class="app">
+      <nav class="top-nav" aria-label="页面导航">
+        <a href="./index.html">记录预览</a>
+        <a href="./trend.html">变更趋势</a>
+        <a href="./crash.html" class="is-active">崩溃分析</a>
+      </nav>
+
+      <header class="hero">
+        <div class="brand-block">
+          <p class="brand">ErrorView</p>
+          <h1>崩溃文件分析</h1>
+          <p class="subtitle">结合 dump 异常落点与崩溃前日志，尽量定位到模块、操作路径与可能原因</p>
+        </div>
+        <div class="hero-actions">
+          <label class="env-switch">
+            <span>环境</span>
+            <select id="envSelect" aria-label="选择接口环境">
+              <option value="prod">正式服 · ggtools</option>
+              <option value="online">测试服 · api-online</option>
+              <option value="test">开发服 · api-test</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-primary" id="analyzeBtn">开始分析</button>
+        </div>
+      </header>
+
+      <section class="panel filters" aria-label="分析输入">
+        <div class="range-presets">
+          <span>快捷</span>
+          <button type="button" class="chip is-active" data-hours="24">近 24 小时崩溃</button>
+          <button type="button" class="chip" data-hours="72">近 3 天崩溃</button>
+        </div>
+
+        <div class="filter-grid">
+          <label>
+            <span>开始时间</span>
+            <input id="start_time" type="datetime-local" />
+          </label>
+          <label>
+            <span>结束时间</span>
+            <input id="end_time" type="datetime-local" />
+          </label>
+          <label>
+            <span>UID</span>
+            <input id="uid" type="number" placeholder="可选" />
+          </label>
+          <label>
+            <span>版本</span>
+            <input id="version" type="text" placeholder="可选" />
+          </label>
+          <label class="span-2">
+            <span>Dump 路径（可直接填 OSS 相对路径）</span>
+            <input id="dumpFile" type="text" placeholder="crashes/windows/x.x.x/xxx.dmp" />
+          </label>
+          <label class="span-2">
+            <span>或上传本地 .dmp</span>
+            <input id="dumpUpload" type="file" accept=".dmp,application/octet-stream" />
+          </label>
+        </div>
+
+        <div class="search-row trend-actions">
+          <p class="hint">可先拉取崩溃列表点选记录，或直接提供 dump 路径/本地文件。深度解析需通过本地 `server.py`。</p>
+          <button type="button" class="btn btn-ghost" id="loadListBtn">拉取崩溃列表</button>
+          <button type="button" class="btn btn-secondary" id="analyzeBtnSecondary">分析当前项</button>
+        </div>
+      </section>
+
+      <div class="progress-panel" id="progressPanel" hidden>
+        <div class="progress-head">
+          <span id="progressLabel">准备中…</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <section class="crash-layout">
+        <aside class="panel crash-list-panel">
+          <div class="table-toolbar">
+            <p id="listStatus" class="status-text">崩溃列表</p>
+          </div>
+          <div class="crash-list" id="crashList">
+            <div class="empty-hint">点击「拉取崩溃列表」加载近期 crash 记录</div>
+          </div>
+        </aside>
+
+        <section class="crash-main">
+          <article class="panel diagnosis-card" id="diagnosisCard">
+            <p class="detail-kicker">诊断结论</p>
+            <h2 id="diagnosisTitle">等待分析</h2>
+            <p id="diagnosisSummary" class="subtitle">选择一条崩溃记录或提供 dump 后开始</p>
+            <div class="confidence" id="confidenceWrap" hidden>
+              <span>置信度</span>
+              <strong id="confidenceValue">—</strong>
+            </div>
+            <ul class="cause-list" id="causeList"></ul>
+            <ul class="suggest-list" id="suggestList"></ul>
+            <div class="detail-actions" style="justify-content: flex-start; margin-top: 14px">
+              <button type="button" class="btn btn-primary" id="aiDiveBtn" disabled>
+                交给 AI 深挖
+              </button>
+              <button type="button" class="btn btn-ghost" id="copyPromptBtn" disabled>
+                复制提示词
+              </button>
+            </div>
+          </article>
+
+          <div class="chart-grid crash-grid">
+            <article class="panel chart-card">
+              <header>
+                <h2>Dump 异常落点</h2>
+                <p>异常码 / 模块 / 偏移</p>
+              </header>
+              <div id="dumpPanel" class="mono-block">尚未解析 dump</div>
+            </article>
+            <article class="panel chart-card">
+              <header>
+                <h2>符号 / 分支</h2>
+                <p>按版本切换 assets/simple 对应分支提取 pdb/exe</p>
+              </header>
+              <div id="symbolPanel" class="mono-block">尚未匹配符号</div>
+            </article>
+            <article class="panel chart-card">
+              <header>
+                <h2>关键发现</h2>
+                <p>按重要性排序</p>
+              </header>
+              <div id="findingPanel" class="finding-list">暂无</div>
+            </article>
+          </div>
+
+          <article class="panel chart-card">
+            <header>
+              <h2>崩溃前任务时间线</h2>
+              <p>基于客户端上报 log</p>
+            </header>
+            <div id="timelinePanel" class="timeline">暂无</div>
+          </article>
+
+          <article class="panel chart-card" id="aiCard">
+            <header>
+              <h2>AI 深挖结果</h2>
+              <p id="aiMeta">先完成机器分析，再点击「交给 AI 深挖」</p>
+            </header>
+            <div id="aiSnippetPanel" class="finding-list" hidden></div>
+            <pre id="aiResultPanel" class="ai-result">等待 AI 分析…</pre>
+          </article>
+        </section>
+      </section>
+
+      <footer class="footer">
+        <span>分析接口：<code>POST /api/crash/analyze</code></span>
+        <span>Dump 源：OSS `eggrj`</span>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="./crash.js" type="module"></script>
+  </body>
+</html>

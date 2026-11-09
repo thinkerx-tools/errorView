@@ -1,0 +1,19 @@
+# local caches / secrets
+.symbol-cache/
+__pycache__/
+*.pyc
+_sample.dmp
+_analyze_out.json
+_req.json
+ai_config.json
+
+# local client code & binaries (clone separately)
+assets/simple/
+assets/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
