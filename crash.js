@@ -2,6 +2,7 @@ import {
   REQUEST_INTERVAL_MS,
   buildRecordQuery,
   createProgressController,
+  isStaticHosting,
   recordApiUrl,
   requestErrorRecords,
   sleep,
@@ -417,6 +418,13 @@ document.querySelectorAll(".range-presets .chip").forEach((chip) => {
 const params = new URLSearchParams(location.search);
 setTimeRangeHours(24);
 
+if (isStaticHosting()) {
+  toast("当前为 GitHub Pages：可查崩溃列表；dump 深度解析请本地运行 python server.py");
+  [els.analyzeBtn, els.analyzeBtnSecondary, els.aiDiveBtn].forEach((btn) => {
+    if (btn) btn.disabled = true;
+  });
+}
+
 if (params.get("dumpFile")) {
   els.dumpFile.value = params.get("dumpFile");
 }
@@ -432,7 +440,9 @@ if (params.get("record")) {
   }
 }
 
-if (params.get("auto") === "1" || params.get("dumpFile") || params.get("record")) {
+if (isStaticHosting()) {
+  loadCrashList();
+} else if (params.get("auto") === "1" || params.get("dumpFile") || params.get("record")) {
   analyzeCurrent();
 } else {
   loadCrashList();

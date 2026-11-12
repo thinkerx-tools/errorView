@@ -322,7 +322,22 @@ export function buildRecordQuery({
   return params;
 }
 
+/** 本地 server.py 用同源代理；GitHub Pages 等静态托管直连接口（CORS 已放行 thinkerx-tools.github.io） */
+function shouldUseApiProxy() {
+  const host = location.hostname;
+  return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+}
+
+export function isStaticHosting() {
+  return !shouldUseApiProxy();
+}
+
 export function recordApiUrl(env, query) {
+  if (shouldUseApiProxy()) {
+    const params = new URLSearchParams(query.toString());
+    params.set("env", env || "prod");
+    return `/api/proxy/error/record?${params.toString()}`;
+  }
   const base = ENVIRONMENTS[env] || ENVIRONMENTS.prod;
   return `${base}/error/record?${query.toString()}`;
 }
